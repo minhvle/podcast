@@ -31,6 +31,7 @@ If RSS access is blocked, the app also resolves the show through Apple Podcasts 
 - Click **Add podcast**, search the Apple Podcasts catalogue, or paste a direct RSS feed URL and add the show.
 - **Inbox** displays only the newest available episode from each podcast show in Library.
 - **Library** uses the show cards from v1.6.0: one card per podcast with creator, episode count, and a **View** button. Library itself contains no episode rows.
+- Select **Unsubscribe** on a Library card to remove the podcast and all of its cached episodes from the app after confirmation.
 - Selecting **View** opens all available episodes for that podcast in Inbox; the normal unfiltered Inbox still shows only the newest episode from each show.
 - Import and export podcast subscriptions as an OPML file. OPML contains one show record per podcast (name and RSS feed) and does not contain episode links.
 - Subscribed feeds refresh automatically at startup, with a manual **Refresh shows** action in Library. RSS, Atom, enclosure links, and common `media:content` audio feeds are supported.

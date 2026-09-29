@@ -77,7 +77,7 @@ function renderLibraryShows(){
   $("#show-grid").innerHTML=shows.map((show,index)=>`<article class="show-card">
     <div class="show-cover ${show.cover||""}">${show.image?`<img src="${escapeHtml(show.image)}" alt="" />`:`<span>${escapeHtml(show.name.charAt(0))}</span>`}</div>
     <div class="show-copy"><strong>${escapeHtml(show.name)}</strong><span>${escapeHtml(show.creator)} · ${show.count} ${show.count===1?"episode":"episodes"}</span></div>
-    <button class="view-show" data-show="${escapeHtml(show.name)}">View</button>
+    <div class="show-actions"><button class="view-show" data-show="${escapeHtml(show.name)}">View</button><button class="unsubscribe-show" data-show="${escapeHtml(show.name)}" data-feed="${escapeHtml(show.feedUrl)}">Unsubscribe</button></div>
   </article>`).join("");
 }
 
@@ -173,6 +173,18 @@ $("#search-input").addEventListener("input",e=>{
 });
 
 $("#show-grid").addEventListener("click",async event=>{
+  const unsubscribe=event.target.closest(".unsubscribe-show");
+  if(unsubscribe){
+    const showName=unsubscribe.dataset.show,feedUrl=unsubscribe.dataset.feed;
+    if(!confirm(`Unsubscribe from “${showName}”?`))return;
+    const removedEpisodes=liveEpisodes.filter(episode=>episode.feedUrl===feedUrl||episode.show===showName);
+    const removedIds=new Set(removedEpisodes.map(episode=>String(episode.id)));
+    subscriptions=subscriptions.filter(show=>show.feedUrl!==feedUrl&&show.collectionName!==showName);
+    liveEpisodes=liveEpisodes.filter(episode=>!removedIds.has(String(episode.id)));
+    for(const id of removedIds){state.queue.delete(id);state.starred.delete(id);state.deleted.delete(id);}
+    if(removedIds.has(String(state.activeId))){audio.pause();audio.removeAttribute("src");$("#player").hidden=true;state.activeId=null;}
+    save();saveLibrary();renderLibraryShows();render();showToast(`${showName} unsubscribed`);return;
+  }
   const button=event.target.closest(".view-show");if(!button)return;
   state.view="inbox";state.showFilter=button.dataset.show;state.query="";$("#search-input").value="";
   document.querySelectorAll(".nav-item").forEach(item=>item.classList.toggle("active",item.dataset.view==="inbox"));
