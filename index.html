@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#050606" />
+  <meta name="description" content="A focused podcast inbox and listening library." />
+  <title>Podcasts</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#" aria-label="Podcasts home">
+        <span class="brand-mark"><i></i></span><span>Podcasts</span>
+      </a>
+
+      <nav class="nav" aria-label="Primary navigation">
+        <button class="nav-item" data-view="queue"><span class="icon">▣</span><span>Queue</span><b class="badge" id="queue-count">0</b></button>
+        <button class="nav-item active" data-view="inbox"><span class="icon">♫</span><span>Inbox</span></button>
+        <button class="nav-item" data-view="library"><span class="icon">Ⅱ</span><span>Library</span></button>
+        <button class="nav-item" data-view="starred"><span class="icon">☆</span><span>Starred</span></button>
+        <button class="nav-item" data-view="search"><span class="icon search-icon"></span><span>Search</span></button>
+        <button class="nav-item" data-view="profile"><span class="icon user-icon">○</span><span>Profile</span></button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="socials" aria-label="Social links"><span>𝕏</span><span>f</span><span>◉</span><span>◉</span><span>↗</span></div>
+        <button class="settings"><span>⚙</span> Settings</button>
+        <small class="version">PWA 1.0.2 · GitHub Pages</small>
+      </div>
+    </aside>
+
+    <main class="content">
+      <header class="mobile-header"><button id="menu-button" aria-label="Open menu">☰</button><span>Podcasts</span></header>
+      <section class="toolbar">
+        <div>
+          <p class="eyebrow">YOUR PODCASTS</p>
+          <h1 id="view-title">Inbox</h1>
+        </div>
+        <div class="toolbar-actions">
+          <button class="install-button" id="install-button" hidden>Install app</button>
+          <button class="add-podcast-button" id="add-podcast-button">＋ Add podcast</button>
+          <label class="search-box" id="search-box"><span class="search-icon"></span><input id="search-input" type="search" placeholder="Search episodes" autocomplete="off" /></label>
+          <button class="filter-button" id="filter-button" aria-pressed="false">Unplayed</button>
+        </div>
+      </section>
+
+      <div class="column-head"><span>#</span><span>EPISODE</span><span>RELEASED</span><span>DURATION</span><span></span></div>
+      <section id="episode-list" class="episode-list" aria-live="polite"></section>
+      <section id="discover" class="discover" hidden>
+        <div id="discover-status" class="discover-status">Search by podcast title, creator, or paste an RSS feed URL.</div>
+        <div id="podcast-results" class="podcast-results"></div>
+      </section>
+      <section id="show-library" class="show-library" hidden>
+        <div class="library-heading">
+          <div><span>FOLLOWED SHOWS</span><span id="show-count"></span></div>
+          <div class="library-actions">
+            <button id="refresh-button">↻ Refresh shows</button>
+            <button id="import-button">↑ Import OPML</button>
+            <button id="export-button">↓ Export OPML</button>
+            <input id="import-file" type="file" accept=".opml,.xml,text/xml,application/xml" hidden />
+          </div>
+        </div>
+        <div id="show-grid" class="show-grid"></div>
+        <div id="library-empty" class="discover-status" hidden>No podcast shows have been added yet.</div>
+      </section>
+      <section id="empty-state" class="empty-state" hidden><span>◌</span><h2>Nothing here yet</h2><p>Try a different view or search.</p></section>
+    </main>
+  </div>
+
+  <section class="player" id="player" aria-label="Now playing" hidden>
+    <button class="player-cover" id="player-cover" aria-label="Open now playing"></button>
+    <div class="player-copy"><strong id="player-title"></strong><span id="player-show"></span></div>
+    <button class="skip" id="back-button" aria-label="Back 15 seconds">−15</button>
+    <button class="play-main" id="play-main" aria-label="Play">▶</button>
+    <button class="skip" id="forward-button" aria-label="Forward 30 seconds">+30</button>
+    <span class="player-time" id="player-time">0:00 / 0:00</span>
+    <div class="progress"><i id="progress-fill"></i></div>
+    <button class="close-player" id="close-player" aria-label="Close player">×</button>
+    <audio id="audio" preload="metadata"></audio>
+  </section>
+
+  <div class="episode-menu" id="episode-menu" role="menu" hidden>
+    <button role="menuitem" data-action="star"><span>☆</span><span id="star-label">Star episode</span></button>
+    <button role="menuitem" data-action="download"><span>↓</span><span>Download episode</span></button>
+    <button role="menuitem" data-action="delete" class="danger"><span>⌫</span><span>Delete episode</span></button>
+  </div>
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <div class="connection-status" id="connection-status" hidden>Offline · showing saved podcasts</div>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
