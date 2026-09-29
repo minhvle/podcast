@@ -172,11 +172,13 @@ $("#search-input").addEventListener("input",e=>{
   searchTimer=setTimeout(searchPodcasts,350);
 });
 
-$("#show-grid").addEventListener("click",event=>{
+$("#show-grid").addEventListener("click",async event=>{
   const button=event.target.closest(".view-show");if(!button)return;
   state.view="inbox";state.showFilter=button.dataset.show;state.query="";$("#search-input").value="";
   document.querySelectorAll(".nav-item").forEach(item=>item.classList.toggle("active",item.dataset.view==="inbox"));
   title.textContent=state.showFilter;$("#show-library").hidden=true;list.hidden=false;$(".column-head").hidden=false;render();
+  const subscription=subscriptions.find(show=>show.collectionName===state.showFilter);
+  if(subscription){showToast("Refreshing live episodes…");try{await refreshSubscription(subscription);saveLibrary();render();showToast(`${currentEpisodes().length} episodes loaded`);}catch(error){showToast(error.message||"Episodes could not be loaded");}}
 });
 $("#filter-button").addEventListener("click",e=>{state.unplayed=!state.unplayed;e.currentTarget.setAttribute("aria-pressed",state.unplayed);render();});
 $("#menu-button").addEventListener("click",()=>$(".sidebar").classList.toggle("open"));
@@ -219,12 +221,16 @@ async function searchPodcasts(){
 async function searchApplePodcasts(query){
   const url=new URL("https://itunes.apple.com/search");
   url.searchParams.set("term",query);url.searchParams.set("media","podcast");url.searchParams.set("entity","podcast");url.searchParams.set("country","AU");url.searchParams.set("limit","20");
-  try{const response=await fetch(url);if(!response.ok)throw new Error(`Search failed (${response.status})`);return (await response.json()).results||[];}catch{
+  return (await fetchAppleJson(url,"Podcast search is unavailable")).results||[];
+}
+
+async function fetchAppleJson(url,errorMessage){
+  try{const response=await fetch(url);if(!response.ok)throw new Error();return await response.json();}catch{
     return new Promise((resolve,reject)=>{
-      const callback=`podcastSearch_${Date.now()}`;const script=document.createElement("script");
-      const timeout=setTimeout(()=>finish(new Error("Podcast search timed out")),12000);
-      function finish(error,data){clearTimeout(timeout);delete window[callback];script.remove();error?reject(error):resolve(data?.results||[]);}
-      window[callback]=data=>finish(null,data);script.onerror=()=>finish(new Error("Podcast search is unavailable"));url.searchParams.set("callback",callback);script.src=url;document.head.appendChild(script);
+      const callback=`podcastApple_${Date.now()}_${Math.random().toString(36).slice(2)}`;const script=document.createElement("script");
+      const timeout=setTimeout(()=>finish(new Error(errorMessage)),12000);
+      function finish(error,data){clearTimeout(timeout);delete window[callback];script.remove();error?reject(error):resolve(data);}
+      window[callback]=data=>finish(null,data);script.onerror=()=>finish(new Error(errorMessage));url.searchParams.set("callback",callback);script.src=url;document.head.appendChild(script);
     });
   }
 }
@@ -276,15 +282,47 @@ function parseFeed(xml,show){
   }).filter(item=>item.audio);
 }
 
+async function fetchAppleEpisodes(show){
+  let collectionId=show.collectionId;
+  if(!collectionId){
+    const candidates=await searchApplePodcasts(show.collectionName);
+    const normal=value=>String(value||"").toLowerCase().replace(/\/$/,"");
+    const match=candidates.find(item=>normal(item.feedUrl)===normal(show.feedUrl))||candidates.find(item=>normal(item.collectionName)===normal(show.collectionName))||candidates[0];
+    if(!match?.collectionId)throw new Error("This show was not found in Apple Podcasts");
+    collectionId=match.collectionId;show.collectionId=collectionId;show.feedUrl=show.feedUrl||match.feedUrl;show.artworkUrl600=show.artworkUrl600||match.artworkUrl600||match.artworkUrl100;
+  }
+  const url=new URL("https://itunes.apple.com/lookup");
+  url.searchParams.set("id",collectionId);url.searchParams.set("media","podcast");url.searchParams.set("entity","podcastEpisode");url.searchParams.set("country","AU");url.searchParams.set("limit","40");
+  const data=await fetchAppleJson(url,"Apple Podcasts episodes are unavailable");
+  return (data.results||[]).filter(item=>item.episodeUrl&&(item.wrapperType==="podcastEpisode"||item.kind==="podcast-episode")).map(item=>({
+    id:`apple-${item.trackId||stableId(item.episodeUrl)}`,title:item.trackName||"Untitled episode",show:item.collectionName||show.collectionName,
+    date:item.releaseDate?new Date(item.releaseDate).toISOString().slice(0,10):"",seconds:Math.floor((item.trackTimeMillis||0)/1000),cover:"",art:"",
+    image:item.artworkUrl600||item.artworkUrl160||item.artworkUrl100||show.artworkUrl600||"",audio:item.episodeUrl,played:false,live:true,feedUrl:show.feedUrl
+  }));
+}
+
+async function loadEpisodes(show){
+  try{const episodes=parseFeed(await fetchFeedXml(show.feedUrl),show);if(episodes.length)return episodes;}catch{}
+  const episodes=await fetchAppleEpisodes(show);if(!episodes.length)throw new Error("No playable episodes were found");return episodes;
+}
+
 async function subscribeToShow(show,{saveNow=true}={}){
   if(subscriptions.some(item=>item.feedUrl===show.feedUrl))return false;
-  const newEpisodes=parseFeed(await fetchFeedXml(show.feedUrl),show);
+  const newEpisodes=await loadEpisodes(show);
   if(!newEpisodes.length)throw new Error("No playable audio was found in this feed.");
-  subscriptions.push({feedUrl:show.feedUrl,collectionName:newEpisodes[0].show,artistName:show.artistName||"Imported podcast",artworkUrl600:newEpisodes[0].image});
+  subscriptions.push({feedUrl:show.feedUrl,collectionId:show.collectionId,collectionName:newEpisodes[0].show,artistName:show.artistName||"Imported podcast",artworkUrl600:newEpisodes[0].image});
   const ids=new Set(liveEpisodes.map(item=>item.id));
   liveEpisodes=[...newEpisodes.filter(item=>!ids.has(item.id)),...liveEpisodes];
   if(saveNow)saveLibrary();
   return true;
+}
+
+async function refreshSubscription(sub){
+  const fresh=await loadEpisodes(sub);
+  liveEpisodes=liveEpisodes.filter(item=>item.feedUrl!==sub.feedUrl&&item.show!==sub.collectionName);
+  liveEpisodes.push(...fresh);
+  sub.collectionName=fresh[0].show;sub.artworkUrl600=fresh[0].image||sub.artworkUrl600;
+  return fresh.length;
 }
 
 async function refreshSubscriptions({notify=true}={}){
@@ -293,11 +331,7 @@ async function refreshSubscriptions({notify=true}={}){
   let refreshed=0,failed=0;
   for(const sub of subscriptions){
     try{
-      const fresh=parseFeed(await fetchFeedXml(sub.feedUrl),sub);
-      if(!fresh.length)throw new Error("No playable episodes");
-      liveEpisodes=liveEpisodes.filter(item=>item.feedUrl!==sub.feedUrl);
-      liveEpisodes.push(...fresh);
-      sub.collectionName=fresh[0].show;sub.artworkUrl600=fresh[0].image||sub.artworkUrl600;
+      await refreshSubscription(sub);
       refreshed+=1;
     }catch{failed+=1;}
   }

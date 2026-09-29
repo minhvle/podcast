@@ -22,6 +22,8 @@ Service workers require HTTP or HTTPS; do not open `index.html` using a `file://
 
 GitHub Pages cannot proxy RSS feeds. The app first requests each feed directly, then uses the CORS-enabled fallback services configured in `config.js`. For a heavily used public deployment, replace those services with a proxy you control.
 
+If RSS access is blocked, the app also resolves the show through Apple Podcasts and loads its current episode catalogue. This fallback runs during refresh and when a Library card's **View** button is opened with no cached episodes.
+
 ## Included interactions
 
 - Switch between Inbox, Queue, Library, Starred, Search, and Profile views.
