@@ -40,8 +40,8 @@ h1 { margin:0; font-size:30px; letter-spacing:-.8px; }
 .column-head, .episode-row { display:grid; grid-template-columns:28px minmax(260px,1fr) 105px 72px 42px; column-gap:16px; align-items:center; }
 .column-head { height:42px; color:#646a6e; font-size:9px; font-weight:800; letter-spacing:1px; }
 .episode-list { display:grid; }
-.episode-list[hidden] { display:none; }
-.column-head[hidden] { display:none; }
+.episode-list[hidden] { display:none !important; }
+.column-head[hidden] { display:none !important; }
 .episode-row { min-height:84px; border-top:1px solid transparent; border-bottom:1px solid #171919; padding:9px 0; cursor:default; transition:background .16s ease, transform .16s ease; }
 .episode-row:hover { background:#151717; }
 .episode-row.playing { background:#171b1d; }
