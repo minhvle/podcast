@@ -17,35 +17,43 @@ function formatDuration(seconds) {
 }
 
 function currentEpisodes() {
-  let data=[...allEpisodes()];
-  data=data.filter(e=>!state.deleted.has(String(e.id)));
-  if(state.view==="queue") data=data.filter(e=>state.queue.has(String(e.id))||state.queue.has(e.id));
-  if(state.view==="starred") data=data.filter(e=>isStarred(e.id));
-  if(state.showFilter) data=data.filter(e=>e.show===state.showFilter);
-  if(state.view==="inbox") {
-    data.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-    if(!state.showFilter) {
-      const seenShows=new Set();
-      data=data.filter(episode=>{
-        const showKey=episode.feedUrl||episode.show;
-        if(seenShows.has(showKey))return false;
-        seenShows.add(showKey);
-        return true;
-      });
+  let data = [...allEpisodes()];
+  data = data.filter(e => !state.deleted.has(String(e.id)));
+
+  if (state.view === "queue") data = data.filter(e => state.queue.has(String(e.id)) || state.queue.has(e.id));
+  if (state.view === "starred") data = data.filter(e => isStarred(e.id));
+  if (state.showFilter) data = data.filter(e => e.show === state.showFilter);
+  if (state.unplayed) data = data.filter(e => !e.played);
+
+  const q = state.query.trim().toLowerCase();
+  if (q) data = data.filter(e => `${e.title} ${e.show}`.toLowerCase().includes(q));
+
+  // Inbox contains all available episodes. Sorting is applied to the actual
+  // episode list so every sort option has a visible effect.
+  const releaseTime = episode => {
+    if (episode.releaseTime != null && Number.isFinite(Number(episode.releaseTime))) {
+      return Number(episode.releaseTime);
     }
+    const value = Date.parse(episode.date || "");
+    return Number.isNaN(value) ? 0 : value;
+  };
+
+  if (state.sort === "date-desc") {
+    data.sort((a, b) => releaseTime(b) - releaseTime(a));
+  } else if (state.sort === "date-asc") {
+    data.sort((a, b) => releaseTime(a) - releaseTime(b));
+  } else if (state.sort === "duration-desc") {
+    data.sort((a, b) => (Number(b.seconds) || 0) - (Number(a.seconds) || 0));
+  } else if (state.sort === "duration-asc") {
+    data.sort((a, b) => (Number(a.seconds) || 0) - (Number(b.seconds) || 0));
+  } else if (state.sort === "name-asc") {
+    data.sort((a, b) => String(a.title || "").localeCompare(String(b.title || ""), undefined, {sensitivity: "base"}));
+  } else if (state.sort === "name-desc") {
+    data.sort((a, b) => String(b.title || "").localeCompare(String(a.title || ""), undefined, {sensitivity: "base"}));
   }
-  if(state.sort==="date-desc") data.sort((a,b)=>new Date(b.date)-new Date(a.date));
-  else if(state.sort==="date-asc") data.sort((a,b)=>new Date(a.date)-new Date(b.date));
-  else if(state.sort==="duration-desc") data.sort((a,b)=>(Number(b.seconds)||0)-(Number(a.seconds)||0));
-  else if(state.sort==="duration-asc") data.sort((a,b)=>(Number(a.seconds)||0)-(Number(b.seconds)||0));
-  else if(state.sort==="name-asc") data.sort((a,b)=>String(a.title||"").localeCompare(String(b.title||""),undefined,{sensitivity:"base"}));
-  else if(state.sort==="name-desc") data.sort((a,b)=>String(b.title||"").localeCompare(String(a.title||""),undefined,{sensitivity:"base"}));
-  if(state.unplayed) data=data.filter(e=>!e.played);
-  const q=state.query.trim().toLowerCase();
-  if(q) data=data.filter(e=>`${e.title} ${e.show}`.toLowerCase().includes(q));
+
   return data;
 }
-
 function render() {
   const data=currentEpisodes();
   list.innerHTML=data.map((e,i)=>`<article class="episode-row ${String(state.activeId)===String(e.id)?"playing":""} ${isStarred(e.id)?"starred":""}" data-id="${escapeHtml(e.id)}">
@@ -311,7 +319,7 @@ function parseFeed(xml,show){
     const parts=durationText.split(":").map(Number);
     const seconds=parts.length===3?parts[0]*3600+parts[1]*60+parts[2]:parts.length===2?parts[0]*60+parts[1]:Number(durationText)||0;
     const guid=localText(item,"guid","id")||audioUrl||`${show.feedUrl}-${index}`;
-    return {id:`live-${stableId(`${show.feedUrl}|${guid}`)}`,title:localText(item,"title")||"Untitled episode",show:feedTitle,date:Number.isNaN(parsedDate.getTime())?"":parsedDate.toLocaleDateString("en-CA"),seconds,cover:"",art:"",image:feedImage,audio:audioUrl,played:false,live:true,feedUrl:show.feedUrl};
+    return {id:`live-${stableId(`${show.feedUrl}|${guid}`)}`,title:localText(item,"title")||"Untitled episode",show:feedTitle,date:Number.isNaN(parsedDate.getTime())?"":parsedDate.toLocaleDateString("en-CA"),releaseTime:Number.isNaN(parsedDate.getTime())?0:parsedDate.getTime(),seconds,cover:"",art:"",image:feedImage,audio:audioUrl,played:false,live:true,feedUrl:show.feedUrl};
   }).filter(item=>item.audio);
 }
 
@@ -329,7 +337,7 @@ async function fetchAppleEpisodes(show){
   const data=await fetchAppleJson(url,"Apple Podcasts episodes are unavailable");
   return (data.results||[]).filter(item=>item.episodeUrl&&(item.wrapperType==="podcastEpisode"||item.kind==="podcast-episode")).map(item=>({
     id:`apple-${item.trackId||stableId(item.episodeUrl)}`,title:item.trackName||"Untitled episode",show:item.collectionName||show.collectionName,
-    date:item.releaseDate?new Date(item.releaseDate).toISOString().slice(0,10):"",seconds:Math.floor((item.trackTimeMillis||0)/1000),cover:"",art:"",
+    date:item.releaseDate?new Date(item.releaseDate).toISOString().slice(0,10):"",releaseTime:item.releaseDate?new Date(item.releaseDate).getTime():0,seconds:Math.floor((item.trackTimeMillis||0)/1000),cover:"",art:"",
     image:item.artworkUrl600||item.artworkUrl160||item.artworkUrl100||show.artworkUrl600||"",audio:item.episodeUrl,played:false,live:true,feedUrl:show.feedUrl
   }));
 }
