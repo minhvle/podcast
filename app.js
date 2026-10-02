@@ -76,6 +76,11 @@ function libraryShows(){
 }
 
 function renderLibraryShows(){
+  // Library is a show-only view: never leave episode rows from another view visible.
+  list.innerHTML="";
+  list.hidden=true;
+  $(".column-head").hidden=true;
+  $("#empty-state").hidden=true;
   const q=state.query.trim().toLowerCase();
   const shows=libraryShows().filter(show=>!q||`${show.name} ${show.creator}`.toLowerCase().includes(q));
   $("#show-count").textContent=`${shows.length} ${shows.length===1?"show":"shows"}`;
@@ -170,7 +175,7 @@ document.querySelectorAll(".nav-item").forEach(button=>button.addEventListener("
   $("#discover").hidden=!searching; $("#show-library").hidden=!library; list.hidden=searching||library; $(".column-head").hidden=searching||library; empty.hidden=true;
   $("#sort-select").hidden=searching||library;
   $("#search-input").placeholder=searching?"Podcast name or RSS URL":library?"Search podcast shows":"Search episodes";
-  if(searching) $("#search-input").focus(); else if(library)renderLibraryShows(); else render();
+  if(searching) $("#search-input").focus(); else if(library){ renderLibraryShows(); } else render();
   $(".sidebar").classList.remove("open");
 }));
 
