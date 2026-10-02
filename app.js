@@ -2,7 +2,7 @@ let liveEpisodes = [];
 let subscriptions = [];
 let podcastResults = [];
 let searchTimer;
-const state = { view:"inbox", query:"", showFilter:"", unplayed:false, activeId:null, menuId:null, playing:false, elapsed:0, queue:new Set(), starred:new Set(), deleted:new Set() };
+const state = { view:"inbox", query:"", showFilter:"", unplayed:false, sort:"date-desc", activeId:null, menuId:null, playing:false, elapsed:0, queue:new Set(), starred:new Set(), deleted:new Set() };
 const $ = (selector) => document.querySelector(selector);
 const list = $("#episode-list"), empty = $("#empty-state"), title = $("#view-title");
 const audio = $("#audio");
@@ -19,7 +19,7 @@ function formatDuration(seconds) {
 function currentEpisodes() {
   let data=[...allEpisodes()];
   data=data.filter(e=>!state.deleted.has(String(e.id)));
-  if(state.view==="queue") data=data.filter(e=>state.queue.has(e.id));
+  if(state.view==="queue") data=data.filter(e=>state.queue.has(String(e.id))||state.queue.has(e.id));
   if(state.view==="starred") data=data.filter(e=>isStarred(e.id));
   if(state.showFilter) data=data.filter(e=>e.show===state.showFilter);
   if(state.view==="inbox") {
@@ -34,6 +34,12 @@ function currentEpisodes() {
       });
     }
   }
+  if(state.sort==="date-desc") data.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  else if(state.sort==="date-asc") data.sort((a,b)=>new Date(a.date)-new Date(b.date));
+  else if(state.sort==="duration-desc") data.sort((a,b)=>(Number(b.seconds)||0)-(Number(a.seconds)||0));
+  else if(state.sort==="duration-asc") data.sort((a,b)=>(Number(a.seconds)||0)-(Number(b.seconds)||0));
+  else if(state.sort==="name-asc") data.sort((a,b)=>String(a.title||"").localeCompare(String(b.title||""),undefined,{sensitivity:"base"}));
+  else if(state.sort==="name-desc") data.sort((a,b)=>String(b.title||"").localeCompare(String(a.title||""),undefined,{sensitivity:"base"}));
   if(state.unplayed) data=data.filter(e=>!e.played);
   const q=state.query.trim().toLowerCase();
   if(q) data=data.filter(e=>`${e.title} ${e.show}`.toLowerCase().includes(q));
@@ -110,6 +116,7 @@ function openEpisodeMenu(id,button){
   const menu=$("#episode-menu");
   const starred=isStarred(id);
   $("#star-label").textContent=starred?"Unstar episode":"Star episode";
+  $("#queue-label").textContent=state.queue.has(id)||state.queue.has(Number(id))?"Remove from queue":"Add to queue";
   menu.hidden=false;
   const rect=button.getBoundingClientRect();
   const menuWidth=190, menuHeight=126;
@@ -128,6 +135,13 @@ $("#episode-menu").addEventListener("click",async event=>{
     const id=String(episode.id);
     if(state.starred.has(id)||state.starred.has(Number(id))) { state.starred.delete(id);state.starred.delete(Number(id));showToast("Episode unstarred"); }
     else { state.starred.add(id);showToast("Episode starred"); }
+    save(); closeEpisodeMenu(); render(); return;
+  }
+  if(action==="queue") {
+    const id=String(episode.id);
+    const queued=state.queue.has(id)||state.queue.has(Number(id));
+    if(queued){ state.queue.delete(id); state.queue.delete(Number(id)); showToast("Removed from queue"); }
+    else { state.queue.add(id); showToast("Added to queue"); }
     save(); closeEpisodeMenu(); render(); return;
   }
   if(action==="download") {
@@ -154,6 +168,7 @@ document.querySelectorAll(".nav-item").forEach(button=>button.addEventListener("
   const searching=state.view==="search";
   const library=state.view==="library";
   $("#discover").hidden=!searching; $("#show-library").hidden=!library; list.hidden=searching||library; $(".column-head").hidden=searching||library; empty.hidden=true;
+  $("#sort-select").hidden=searching||library;
   $("#search-input").placeholder=searching?"Podcast name or RSS URL":library?"Search podcast shows":"Search episodes";
   if(searching) $("#search-input").focus(); else if(library)renderLibraryShows(); else render();
   $(".sidebar").classList.remove("open");
@@ -192,6 +207,7 @@ $("#show-grid").addEventListener("click",async event=>{
   const subscription=subscriptions.find(show=>show.collectionName===state.showFilter);
   if(subscription){showToast("Refreshing live episodes…");try{await refreshSubscription(subscription);saveLibrary();render();showToast(`${currentEpisodes().length} episodes loaded`);}catch(error){showToast(error.message||"Episodes could not be loaded");}}
 });
+$("#sort-select").addEventListener("change",e=>{state.sort=e.target.value;render();});
 $("#filter-button").addEventListener("click",e=>{state.unplayed=!state.unplayed;e.currentTarget.setAttribute("aria-pressed",state.unplayed);render();});
 $("#menu-button").addEventListener("click",()=>$(".sidebar").classList.toggle("open"));
 $("#play-main").addEventListener("click",()=>{ if(!audio.src)return; audio.paused?audio.play():audio.pause(); });

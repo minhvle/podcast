@@ -23,7 +23,6 @@
         <button class="nav-item" data-view="library"><span class="icon">Ⅱ</span><span>Library</span></button>
         <button class="nav-item" data-view="starred"><span class="icon">☆</span><span>Starred</span></button>
         <button class="nav-item" data-view="search"><span class="icon search-icon"></span><span>Search</span></button>
-        <button class="nav-item" data-view="profile"><span class="icon user-icon">○</span><span>Profile</span></button>
       </nav>
 
       <div class="sidebar-bottom">
@@ -44,6 +43,14 @@
           <button class="install-button" id="install-button" hidden>Install app</button>
           <button class="add-podcast-button" id="add-podcast-button">＋ Add podcast</button>
           <label class="search-box" id="search-box"><span class="search-icon"></span><input id="search-input" type="search" placeholder="Search episodes" autocomplete="off" /></label>
+          <select class="sort-select" id="sort-select" aria-label="Sort episodes">
+            <option value="date-desc">Release date (newest)</option>
+            <option value="date-asc">Release date (oldest)</option>
+            <option value="duration-desc">Duration (longest)</option>
+            <option value="duration-asc">Duration (shortest)</option>
+            <option value="name-asc">Name (A–Z)</option>
+            <option value="name-desc">Name (Z–A)</option>
+          </select>
           <button class="filter-button" id="filter-button" aria-pressed="false">Unplayed</button>
         </div>
       </section>
@@ -85,6 +92,7 @@
 
   <div class="episode-menu" id="episode-menu" role="menu" hidden>
     <button role="menuitem" data-action="star"><span>☆</span><span id="star-label">Star episode</span></button>
+    <button role="menuitem" data-action="queue"><span>▣</span><span id="queue-label">Add to queue</span></button>
     <button role="menuitem" data-action="download"><span>↓</span><span>Download episode</span></button>
     <button role="menuitem" data-action="delete" class="danger"><span>⌫</span><span>Delete episode</span></button>
   </div>
