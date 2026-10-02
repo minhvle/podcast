@@ -52,6 +52,11 @@
             <option value="name-desc">Name (Z–A)</option>
           </select>
           <button class="filter-button" id="filter-button" aria-pressed="false">Unplayed</button>
+          <div class="queue-actions" id="queue-actions" hidden>
+            <button id="import-queue-button">↑ Import queue</button>
+            <button id="export-queue-button">↓ Export queue</button>
+            <input id="import-queue-file" type="file" accept=".json,application/json" hidden />
+          </div>
         </div>
       </section>
 

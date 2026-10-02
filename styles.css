@@ -88,3 +88,8 @@ h1 { margin:0; font-size:30px; letter-spacing:-.8px; }
   .episode-row { grid-template-columns:24px minmax(0,1fr) 34px; gap:10px; }.episode-main { grid-template-columns:55px minmax(0,1fr); }.cover { width:55px;height:55px; }.date,.duration { display:none; }.row-actions { opacity:1; }
   .player { left:10px;right:10px;bottom:10px; grid-template-columns:44px minmax(100px,1fr) 42px 32px; min-height:66px; }.player-cover { width:44px;height:44px; }.skip,.player-time,.progress { display:none; }
 }
+
+.queue-actions { display:flex; gap:8px; align-items:center; }
+.queue-actions[hidden] { display:none; }
+.queue-actions button { height:40px; padding:0 13px; border:1px solid #303334; border-radius:20px; background:#151616; color:#aaa; cursor:pointer; font-size:12px; font-weight:700; }
+.queue-actions button:hover { color:#fff; border-color:#555; }

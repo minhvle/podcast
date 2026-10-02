@@ -65,6 +65,7 @@ function render() {
   empty.hidden=state.view==="search" || data.length>0;
   $("#queue-count").textContent=state.queue.size || "";
   $("#queue-count").dataset.count=state.queue.size;
+  updateQueueActions();
 }
 
 function libraryShows(){
@@ -93,6 +94,7 @@ function renderLibraryShows(){
   const shows=libraryShows().filter(show=>!q||`${show.name} ${show.creator}`.toLowerCase().includes(q));
   $("#show-count").textContent=`${shows.length} ${shows.length===1?"show":"shows"}`;
   $("#library-empty").hidden=shows.length>0;
+  updateQueueActions();
   $("#show-grid").innerHTML=shows.map((show,index)=>`<article class="show-card">
     <div class="show-cover ${show.cover||""}">${show.image?`<img src="${escapeHtml(show.image)}" alt="" />`:`<span>${escapeHtml(show.name.charAt(0))}</span>`}</div>
     <div class="show-copy"><strong>${escapeHtml(show.name)}</strong><span>${escapeHtml(show.creator)} · ${show.count} ${show.count===1?"episode":"episodes"}</span></div>
@@ -175,9 +177,73 @@ $("#episode-menu").addEventListener("click",async event=>{
 document.addEventListener("click",event=>{if(!event.target.closest("#episode-menu")&&!event.target.closest(".more"))closeEpisodeMenu();});
 window.addEventListener("resize",closeEpisodeMenu);
 
+function updateQueueActions(){
+  const actions=$("#queue-actions");
+  if(actions) actions.hidden=state.view!=="queue";
+}
+
+function exportQueue(){
+  const queuedIds=new Set([...state.queue].map(id=>String(id)));
+  const episodes=allEpisodes().filter(e=>queuedIds.has(String(e.id)));
+  const payload={
+    format:"podcasts-queue",
+    version:1,
+    exportedAt:new Date().toISOString(),
+    episodes
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement("a");
+  link.href=url;
+  link.download=`podcast-queue-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  showToast(`${episodes.length} ${episodes.length===1?"episode":"episodes"} exported`);
+}
+
+async function importQueue(file){
+  try{
+    const text=await file.text();
+    const payload=JSON.parse(text);
+    const imported=Array.isArray(payload)?payload:payload.episodes;
+    if(!Array.isArray(imported)) throw new Error("This file is not a valid podcast queue export.");
+
+    const existingIds=new Set(allEpisodes().map(e=>String(e.id)));
+    let added=0;
+    for(const episode of imported){
+      if(!episode || episode.id==null || !episode.title) continue;
+      const id=String(episode.id);
+      state.queue.add(id);
+      if(!existingIds.has(id)){
+        liveEpisodes.push(episode);
+        existingIds.add(id);
+        added++;
+      }
+    }
+    save();
+    saveLibrary();
+    if(state.view==="library") renderLibraryShows(); else render();
+    showToast(`${imported.length} queue ${imported.length===1?"episode":"episodes"} imported${added?` · ${added} new episode${added===1?"":"s"} added`:""}`);
+  }catch(error){
+    showToast(error.message||"Could not import queue");
+  }finally{
+    $("#import-queue-file").value="";
+  }
+}
+
+$("#export-queue-button").addEventListener("click",exportQueue);
+$("#import-queue-button").addEventListener("click",()=>$("#import-queue-file").click());
+$("#import-queue-file").addEventListener("change",event=>{
+  const file=event.target.files?.[0];
+  if(file) importQueue(file);
+});
+
 document.querySelectorAll(".nav-item").forEach(button=>button.addEventListener("click",()=>{
   state.view=button.dataset.view; state.showFilter=""; state.query=""; $("#search-input").value=""; document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b===button));
   title.textContent=button.textContent.trim().replace(/\d+$/,"");
+  updateQueueActions();
   const searching=state.view==="search";
   const library=state.view==="library";
   $("#discover").hidden=!searching; $("#show-library").hidden=!library; list.hidden=searching||library; $(".column-head").hidden=searching||library; empty.hidden=true;
