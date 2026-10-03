@@ -198,6 +198,21 @@ async function openTranscript(episode) {
 
 function episodeHasTranscript(episode){ return !!episode?.transcriptUrl; }
 
+
+function getEpisodeSourceUrl(episode) {
+  return episode?.link || episode?.url || episode?.guid || episode?.transcriptUrl || null;
+}
+
+function openEpisodeSource(episode) {
+  const url = getEpisodeSourceUrl(episode);
+  if (!url || !/^https?:\/\//i.test(url)) {
+    alert("No episode source link is available for this episode.");
+    return;
+  }
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+
 function openEpisodeMenu(id,button){
   state.menuId=String(id);
   const menu=$("#episode-menu");
@@ -604,3 +619,14 @@ window.addEventListener("online",()=>{updateConnection();refreshSubscriptions({n
 window.addEventListener("offline",updateConnection);updateConnection();
 if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>showToast("Offline setup failed")));
 loadSavedData();
+
+
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-action='episode-source']");
+  if (!button) return;
+  const id = button.dataset.episodeId;
+  const episode = (window.episodes || window.allEpisodes || []).find(
+    e => String(e.id ?? e.guid ?? e.url) === String(id)
+  );
+  if (episode) openEpisodeSource(episode);
+});
