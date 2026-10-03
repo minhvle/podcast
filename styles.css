@@ -98,3 +98,9 @@ h1 { margin:0; font-size:30px; letter-spacing:-.8px; }
 .speed-control select{background:#2d3032;color:#f2f3f3;border:1px solid #45494b;border-radius:6px;padding:5px 6px;font-size:11px}
 .bookmark-button{border:0;background:transparent;color:#bac0c3;cursor:pointer;font-size:17px}
 .bookmark-button:hover,.close-player:hover{color:#fff}
+.transcript-modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+.transcript-modal[hidden]{display:none}
+.transcript-panel{width:min(760px,100%);max-height:80vh;background:var(--panel,#fff);border:1px solid var(--border,#ddd);border-radius:14px;display:flex;flex-direction:column;overflow:hidden}
+.transcript-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border,#ddd)}
+.transcript-header strong{display:block}.transcript-header span{font-size:.8rem;opacity:.65}
+.transcript-header button{font-size:1.5rem;border:0;background:none;cursor:pointer}.transcript-body{padding:18px;overflow:auto;white-space:pre-wrap;line-height:1.6}.transcript-body a{word-break:break-all}
