@@ -91,6 +91,13 @@
     <button class="skip" id="forward-button" aria-label="Forward 30 seconds">+30</button>
     <span class="player-time" id="player-time">0:00 / 0:00</span>
     <div class="progress"><i id="progress-fill"></i></div>
+    <label class="speed-control">Speed
+      <select id="speed-select" aria-label="Playback speed">
+        <option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1×</option>
+        <option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2×</option>
+      </select>
+    </label>
+    <button class="bookmark-button" id="bookmark-button" aria-label="Save playback position" title="Save playback position">🔖</button>
     <button class="close-player" id="close-player" aria-label="Close player">×</button>
     <audio id="audio" preload="metadata"></audio>
   </section>

@@ -2,7 +2,7 @@ let liveEpisodes = [];
 let subscriptions = [];
 let podcastResults = [];
 let searchTimer;
-const state = { view:"inbox", query:"", showFilter:"", unplayed:false, sort:"date-desc", activeId:null, menuId:null, playing:false, elapsed:0, queue:new Set(), starred:new Set(), deleted:new Set() };
+const state = { view:"inbox", query:"", showFilter:"", unplayed:false, sort:"date-desc", activeId:null, menuId:null, playing:false, elapsed:0, queue:new Set(), starred:new Set(), deleted:new Set(), playback:{} };
 const $ = (selector) => document.querySelector(selector);
 const list = $("#episode-list"), empty = $("#empty-state"), title = $("#view-title");
 const audio = $("#audio");
@@ -102,12 +102,37 @@ function renderLibraryShows(){
   </article>`).join("");
 }
 
+function getPlayback(id) {
+  return state.playback[String(id)] || { position: 0, speed: 1 };
+}
+
+function savePlayback() {
+  const id = state.activeId;
+  if (id == null || !audio.src) return;
+  const key = String(id);
+  const previous = getPlayback(key);
+  state.playback[key] = {
+    position: Number.isFinite(audio.currentTime) ? Math.max(0, audio.currentTime) : previous.position,
+    speed: Number.isFinite(audio.playbackRate) ? audio.playbackRate : previous.speed
+  };
+  save();
+}
+
 function selectEpisode(id) {
   const e=allEpisodes().find(item=>String(item.id)===String(id)); if(!e)return;
-  state.activeId=id; state.elapsed=0; e.played=true;
+  state.activeId=id; e.played=true;
+  const playback=getPlayback(id);
   $("#player").hidden=false; $("#player-title").textContent=e.title; $("#player-show").textContent=e.show;
   $("#player-cover").className=`player-cover cover ${e.cover}`;
   audio.src=e.audio;
+  audio.playbackRate=Number(playback.speed)||1;
+  $("#speed-select").value=String(audio.playbackRate);
+  audio.addEventListener("loadedmetadata", function resumeOnce() {
+    audio.removeEventListener("loadedmetadata", resumeOnce);
+    const saved=Number(playback.position)||0;
+    if(saved>0 && (!audio.duration || saved < audio.duration-2)) audio.currentTime=saved;
+    updatePlayer();
+  });
   audio.play().catch(()=>{ state.playing=false; $("#play-main").textContent="▶"; });
   updatePlayer(); render(); save();
 }
@@ -291,16 +316,27 @@ $("#filter-button").addEventListener("click",e=>{state.unplayed=!state.unplayed;
 $("#menu-button").addEventListener("click",()=>$(".sidebar").classList.toggle("open"));
 $("#play-main").addEventListener("click",()=>{ if(!audio.src)return; audio.paused?audio.play():audio.pause(); });
 $("#back-button").addEventListener("click",()=>{audio.currentTime=Math.max(0,audio.currentTime-15);});
-$("#forward-button").addEventListener("click",()=>{audio.currentTime=Math.min(audio.duration||0,audio.currentTime+30);});
+$("#forward-button").addEventListener("click",()=>{audio.currentTime=Math.min(audio.duration||0,audio.currentTime+30);savePlayback();});
+$("#speed-select").addEventListener("change",event=>{
+  const speed=Number(event.target.value);
+  if(!Number.isFinite(speed)||speed<=0)return;
+  audio.playbackRate=speed;
+  savePlayback();
+});
+$("#bookmark-button").addEventListener("click",()=>{
+  savePlayback();
+  showToast(`Bookmark saved at ${formatDuration(Math.floor(audio.currentTime||0))}`);
+});
 $(".progress").addEventListener("click",e=>{if(!audio.duration)return;const r=e.currentTarget.getBoundingClientRect();audio.currentTime=((e.clientX-r.left)/r.width)*audio.duration;});
-$("#close-player").addEventListener("click",()=>{audio.pause();$("#player").hidden=true;});
+$("#close-player").addEventListener("click",()=>{savePlayback();audio.pause();$("#player").hidden=true;});
 audio.addEventListener("play",()=>{state.playing=true;$("#play-main").textContent="❚❚";});
-audio.addEventListener("pause",()=>{state.playing=false;$("#play-main").textContent="▶";});
+audio.addEventListener("pause",()=>{state.playing=false;$("#play-main").textContent="▶";savePlayback();});
 audio.addEventListener("timeupdate",updatePlayer);
 audio.addEventListener("durationchange",updatePlayer);
-audio.addEventListener("ended",()=>{$("#play-main").textContent="▶";});
+audio.addEventListener("ratechange",()=>{ $("#speed-select").value=String(audio.playbackRate); savePlayback(); });
+audio.addEventListener("ended",()=>{ $("#play-main").textContent="▶"; if(state.activeId!=null){ state.playback[String(state.activeId)]={position:0,speed:audio.playbackRate}; save(); } });
 
-function save(){ localStorage.setItem("podcasts-actions",JSON.stringify({queue:[...state.queue],starred:[...state.starred],deleted:[...state.deleted]})); }
+function save(){ localStorage.setItem("podcasts-actions",JSON.stringify({queue:[...state.queue],starred:[...state.starred],deleted:[...state.deleted],playback:state.playback})); }
 function saveLibrary(){ localStorage.setItem("podcasts-library",JSON.stringify({subscriptions,liveEpisodes})); }
 function escapeXml(value="") { return String(value).replace(/[<>&'"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"}[c])); }
 function localText(node,...names){
@@ -491,7 +527,7 @@ $("#import-file").addEventListener("change",async event=>{
 });
 
 function loadSavedData(){
-  try{const actions=JSON.parse(localStorage.getItem("podcasts-actions")||"{}");state.queue=new Set(actions.queue||[]);state.starred=new Set(actions.starred||[]);state.deleted=new Set(actions.deleted||[]);}catch{}
+  try{const actions=JSON.parse(localStorage.getItem("podcasts-actions")||"{}");state.queue=new Set(actions.queue||[]);state.starred=new Set(actions.starred||[]);state.deleted=new Set(actions.deleted||[]);state.playback=actions.playback||{};}catch{}
   try{const library=JSON.parse(localStorage.getItem("podcasts-library")||"{}");subscriptions=library.subscriptions||[];liveEpisodes=library.liveEpisodes||[];}catch{}
   render();refreshSubscriptions({notify:false});
 }
