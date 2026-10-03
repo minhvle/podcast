@@ -151,15 +151,66 @@ list.addEventListener("click", e=>{
   selectEpisode(id);
 });
 
+async function fetchTranscriptText(url, feedUrl="") {
+  try {
+    const response = await fetch(url, {headers:{Accept:"text/plain, text/vtt, text/html, application/xhtml+xml, */*"}});
+    if (response.ok) return await response.text();
+  } catch {}
+  const proxies = window.PODCAST_CONFIG?.feedProxies || [];
+  for (const proxy of proxies) {
+    const entry = typeof proxy === "string" ? {url:proxy, encode:true} : proxy;
+    const target = entry.encode === false ? url : encodeURIComponent(url);
+    try {
+      const response = await fetch(`${entry.url}${target}`);
+      if (response.ok) return await response.text();
+    } catch {}
+  }
+  throw new Error("The transcript could not be loaded. Try opening its source instead.");
+}
+
+function cleanTranscriptText(text, type="") {
+  const value=String(text||"").replace(/^\uFEFF/,"");
+  if (/html|xhtml/i.test(type) || /<\/?(p|div|span|br|html|body)[\s>]/i.test(value)) {
+    const doc=new DOMParser().parseFromString(value,"text/html");
+    return doc.body?.textContent?.replace(/\s+\n/g,"\n").replace(/\n{3,}/g,"\n\n").trim() || value;
+  }
+  if (/vtt/i.test(type) || /^WEBVTT/i.test(value)) {
+    return value.replace(/^WEBVTT[^\n]*\n?/i,"").split(/\n{2,}/).map(block=>block.split("\\n").filter(line=>line.trim()&&!/^\d+$/.test(line.trim())&&!/^\d{2}:\d{2}(?::\d{2})?[.,]\d{3}\s+-->/.test(line.trim())).join(" ")).filter(Boolean).join("\n\n").trim();
+  }
+  return value.trim();
+}
+
+async function openTranscript(episode) {
+  const modal=$("#transcript-modal"), body=$("#transcript-body"), source=$("#transcript-source"), transcript=episode.transcriptUrl;
+  if(!transcript){showToast("No transcript is available for this episode");return;}
+  $("#transcript-title").textContent=episode.title||"Transcript";
+  source.textContent=episode.transcriptType?` · ${episode.transcriptType}`:"";
+  body.textContent="Loading transcript…";
+  modal.hidden=false;
+  try {
+    const text=await fetchTranscriptText(transcript,episode.feedUrl);
+    body.textContent=cleanTranscriptText(text,episode.transcriptType);
+    if(!body.textContent) body.textContent="The transcript is empty.";
+  } catch(error) {
+    body.innerHTML=`<p>${escapeHtml(error.message||"Transcript could not be loaded.")}</p><p><a href="${escapeHtml(transcript)}" target="_blank" rel="noopener">Open transcript source</a></p>`;
+  }
+}
+
+function episodeHasTranscript(episode){ return !!episode?.transcriptUrl; }
+
 function openEpisodeMenu(id,button){
   state.menuId=String(id);
   const menu=$("#episode-menu");
   const starred=isStarred(id);
   $("#star-label").textContent=starred?"Unstar episode":"Star episode";
   $("#queue-label").textContent=state.queue.has(id)||state.queue.has(Number(id))?"Remove from queue":"Add to queue";
+  $("#transcript-menu-item").hidden=!episodeHasTranscript(episode);
+  const playback=getPlayback(id);
+  $("#speed-select").value=String(playback.speed||1);
+  $("#bookmark-button").disabled=String(state.activeId)!==String(id) || !audio.src;
   menu.hidden=false;
   const rect=button.getBoundingClientRect();
-  const menuWidth=190, menuHeight=126;
+  const menuWidth=210, menuHeight=300;
   menu.style.left=`${Math.max(8,Math.min(window.innerWidth-menuWidth-8,rect.right-menuWidth))}px`;
   menu.style.top=`${Math.max(8,Math.min(window.innerHeight-menuHeight-8,rect.bottom+6))}px`;
 }
@@ -183,6 +234,11 @@ $("#episode-menu").addEventListener("click",async event=>{
     if(queued){ state.queue.delete(id); state.queue.delete(Number(id)); showToast("Removed from queue"); }
     else { state.queue.add(id); showToast("Added to queue"); }
     save(); closeEpisodeMenu(); render(); return;
+  }
+  if(action==="transcript") { closeEpisodeMenu(); await openTranscript(episode); return; }
+  if(action==="bookmark") {
+    if(String(state.activeId)!==String(episode.id) || !audio.src) { showToast("Play this episode first to set its bookmark"); return; }
+    savePlayback(); showToast(`Bookmark saved at ${formatDuration(Math.floor(audio.currentTime||0))}`); closeEpisodeMenu(); return;
   }
   if(action==="download") {
     const extension=(episode.audio.split("?")[0].match(/\.([a-z0-9]{2,5})$/i)?.[1]||"mp3").toLowerCase();
@@ -336,6 +392,9 @@ audio.addEventListener("durationchange",updatePlayer);
 audio.addEventListener("ratechange",()=>{ $("#speed-select").value=String(audio.playbackRate); savePlayback(); });
 audio.addEventListener("ended",()=>{ $("#play-main").textContent="▶"; if(state.activeId!=null){ state.playback[String(state.activeId)]={position:0,speed:audio.playbackRate}; save(); } });
 
+$("#close-transcript").addEventListener("click",()=>$("#transcript-modal").hidden=true);
+$("#transcript-modal").addEventListener("click",event=>{if(event.target.id==="transcript-modal")event.currentTarget.hidden=true;});
+
 function save(){ localStorage.setItem("podcasts-actions",JSON.stringify({queue:[...state.queue],starred:[...state.starred],deleted:[...state.deleted],playback:state.playback})); }
 function saveLibrary(){ localStorage.setItem("podcasts-library",JSON.stringify({subscriptions,liveEpisodes})); }
 function escapeXml(value="") { return String(value).replace(/[<>&'"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"}[c])); }
@@ -421,7 +480,11 @@ function parseFeed(xml,show){
     const parts=durationText.split(":").map(Number);
     const seconds=parts.length===3?parts[0]*3600+parts[1]*60+parts[2]:parts.length===2?parts[0]*60+parts[1]:Number(durationText)||0;
     const guid=localText(item,"guid","id")||audioUrl||`${show.feedUrl}-${index}`;
-    return {id:`live-${stableId(`${show.feedUrl}|${guid}`)}`,title:localText(item,"title")||"Untitled episode",show:feedTitle,date:Number.isNaN(parsedDate.getTime())?"":parsedDate.toLocaleDateString("en-CA"),releaseTime:Number.isNaN(parsedDate.getTime())?0:parsedDate.getTime(),seconds,cover:"",art:"",image:feedImage,audio:audioUrl,played:false,live:true,feedUrl:show.feedUrl};
+    const transcriptElement=elements.find(element=>element.localName.toLowerCase()==="transcript" && (element.getAttribute("url")||element.textContent.trim()));
+    let transcriptUrl="";
+    try { transcriptUrl=transcriptElement?.getAttribute("url") ? new URL(transcriptElement.getAttribute("url"),show.feedUrl).href : ""; } catch {}
+    const transcriptType=transcriptElement?.getAttribute("type")||"";
+    return {id:`live-${stableId(`${show.feedUrl}|${guid}`)}`,title:localText(item,"title")||"Untitled episode",show:feedTitle,date:Number.isNaN(parsedDate.getTime())?"":parsedDate.toLocaleDateString("en-CA"),releaseTime:Number.isNaN(parsedDate.getTime())?0:parsedDate.getTime(),seconds,cover:"",art:"",image:feedImage,audio:audioUrl,played:false,live:true,feedUrl:show.feedUrl,transcriptUrl,transcriptType};
   }).filter(item=>item.audio);
 }
 
